@@ -276,6 +276,7 @@ class _DashCamHomePageState extends State<DashCamHomePage> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     return Directionality(
+      textDirection: Directionality.of(context),
       child: Scaffold(
         body: SafeArea(
           child: Column(
@@ -552,6 +553,7 @@ class _VideoPageState extends State<VideoPage> {
   @override
   Widget build(BuildContext context) {
     return Directionality(
+      textDirection: Directionality.of(context),
       child: Scaffold(
         appBar: AppBar(title: const Text('تشغيل التسجيل')),
         body: Center(
