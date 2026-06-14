@@ -1,14 +1,24 @@
-# داش كام بدون صوت
+name: dashcam_no_audio
+description: Dash Cam Android app - video only, no audio.
+publish_to: 'none'
+version: 1.0.0+1
 
-تطبيق أندرويد Flutter لتسجيل الفيديو بدون صوت.
+environment:
+  sdk: '>=3.4.0 <4.0.0'
 
-## البناء
-ارفع محتويات هذا المجلد إلى GitHub ثم شغّل GitHub Actions.
-سيظهر ملف APK باسم:
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.11.0+2
+  geolocator: ^13.0.2
+  path_provider: ^2.1.5
+  video_player: ^2.9.2
+  share_plus: ^10.1.2
+  permission_handler: ^11.3.1
+  intl: ^0.20.1
 
-DashCam-No-Audio.apk
+dev_dependencies:
+  flutter_lints: ^5.0.0
 
-## ملاحظات
-- التسجيل بدون صوت نهائيًا.
-- لا يطلب صلاحية الميكروفون.
-- الوقت والسرعة تظهران بخط صغير فوق المعاينة وداخل مشغل التطبيق.
+flutter:
+  uses-material-design: true
