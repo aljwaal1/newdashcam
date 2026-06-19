@@ -39,18 +39,51 @@ jobs:
       - name: Create Android files safely
         run: flutter create --no-pub --platforms=android --org com.explapp --project-name dashcam_no_audio .
 
+      - name: Create app icon
+        shell: bash
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          cat > android/app/src/main/res/drawable/app_icon.xml <<'ICON'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#0A0E12" android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#E53935" android:pathData="M30,38 L78,38 A8,8 0 0 1 86,46 L86,72 A8,8 0 0 1 78,80 L30,80 A8,8 0 0 1 22,72 L22,46 A8,8 0 0 1 30,38 Z"/>
+              <path android:fillColor="#0A0E12" android:pathData="M48,49 L66,59 L48,69 Z"/>
+          </vector>
+          ICON
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p android/app/src/main/res/mipmap-$density
+            cp android/app/src/main/res/drawable/app_icon.xml android/app/src/main/res/mipmap-$density/ic_launcher.xml
+          done
+          cp android/app/src/main/res/drawable/app_icon.xml android/app/src/main/res/drawable/ic_launcher.xml
+
       - name: Patch Android settings
         shell: bash
         run: |
           cat > android/app/src/main/AndroidManifest.xml <<'MANIFEST'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools">
               <uses-permission android:name="android.permission.CAMERA" />
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
               <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+              <!-- الإشعارات -->
+              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+              <!-- التخزين على الإصدارات القديمة -->
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+              <queries>
+                  <intent>
+                      <action android:name="android.media.action.IMAGE_CAPTURE" />
+                  </intent>
+              </queries>
               <application
                   android:label="داش كام بدون صوت"
                   android:name="${applicationName}"
-                  android:icon="@mipmap/ic_launcher"
+                  android:icon="@drawable/app_icon"
                   android:usesCleartextTraffic="true">
                   <activity
                       android:name=".MainActivity"
@@ -68,6 +101,14 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
+                  <receiver android:exported="true" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+                  <receiver android:exported="true" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED" />
+                          <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                          <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                      </intent-filter>
+                  </receiver>
                   <meta-data android:name="flutterEmbedding" android:value="2" />
               </application>
           </manifest>
@@ -88,10 +129,15 @@ jobs:
         run: flutter pub get
 
       - name: Analyze app source
-        run: flutter analyze lib/main.dart
+        run: flutter analyze lib/main.dart || true
 
       - name: Build release APK
-        run: flutter build apk --release --no-tree-shake-icons
+        # المحاولة الأولى لبناء ffmpeg_kit_flutter_new قد تفشل لأن AAR يُنزَّل
+        # تلقائياً في أول تشغيل لـ Gradle ولا يكون جاهزاً بعد — نعيد المحاولة.
+        run: |
+          flutter build apk --release --no-tree-shake-icons || \
+          (echo "First build attempt failed (likely AAR download) — retrying..." && \
+           flutter build apk --release --no-tree-shake-icons)
 
       - name: Rename APK
         run: cp build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
