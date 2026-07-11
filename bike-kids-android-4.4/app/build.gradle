@@ -8,8 +8,8 @@ android {
         applicationId 'com.explapp.bikekidslegacy'
         minSdk 19
         targetSdk 28
-        versionCode 1
-        versionName '1.0.0-bike-adventure'
+        versionCode 2
+        versionName '1.1.0-portrait-adventure'
     }
 
     buildTypes {
