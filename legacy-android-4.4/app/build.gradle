@@ -8,8 +8,8 @@ android {
         applicationId 'com.explapp.newdashcamlegacy'
         minSdk 19
         targetSdk 28
-        versionCode 2
-        versionName '2.0.0-native-dashcam'
+        versionCode 3
+        versionName '2.0.1-native-dashcam'
     }
 
     buildTypes {
