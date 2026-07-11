@@ -3,12 +3,30 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.explapp.newdashcamlegacy'
     compileSdk 33
+
     defaultConfig {
         applicationId 'com.explapp.newdashcamlegacy'
         minSdk 19
         targetSdk 28
-        versionCode 1
-        versionName '1.0.0-legacy'
+        versionCode 2
+        versionName '2.0.0-native-dashcam'
     }
-    buildTypes { release { minifyEnabled false } }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_7
+        targetCompatibility JavaVersion.VERSION_1_7
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
 }
