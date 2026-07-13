@@ -1,0 +1,14 @@
+Bike Adventure Android 4.4 build report
+Commit: b4209155acbdc8535ab91b134521f150e0e65ba5
+Unit tests: skipped
+Android lint: skipped
+Assemble release: skipped
+APK verification: skipped
+
+===== UNIT TESTS =====
+
+===== ANDROID LINT =====
+
+===== RELEASE BUILD =====
+
+===== APK BADGING =====
