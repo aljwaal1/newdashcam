@@ -4,7 +4,8 @@
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#16A085</item>
         <item name="android:navigationBarColor">#123047</item>
-        <item name="android:windowLightStatusBar">false</item>
         <item name="android:statusBarColor">#123047</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowDisablePreview">false</item>
     </style>
 </resources>
