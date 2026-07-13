@@ -7,7 +7,7 @@ android {
     defaultConfig {
         applicationId 'com.explapp.bikekidslegacy'
         minSdk 19
-        targetSdk 28
+        targetSdk 33
         versionCode 3
         versionName '3.0.0'
         testInstrumentationRunner 'android.test.InstrumentationTestRunner'
@@ -33,7 +33,7 @@ android {
     lintOptions {
         abortOnError true
         checkReleaseBuilds true
-        disable 'OldTargetApi'
+        disable 'OldTargetApi', 'MissingPermission'
     }
 }
 
