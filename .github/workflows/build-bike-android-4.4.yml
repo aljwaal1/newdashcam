@@ -7,12 +7,17 @@ on:
     paths:
       - 'bike-legacy-android-4.4/**'
       - '.github/workflows/build-bike-android-4.4.yml'
+  pull_request:
+    branches: [android-4.4]
+    paths:
+      - 'bike-legacy-android-4.4/**'
+      - '.github/workflows/build-bike-android-4.4.yml'
 
 permissions:
   contents: write
 
 concurrency:
-  group: bike-adventure-android-4.4
+  group: bike-adventure-android-4.4-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
