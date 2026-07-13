@@ -1,5 +1,5 @@
 Bike Adventure Android 4.4 build report
-Commit: 2d80c5815c07a6dc35ce0340f4eb9d3ee4eb99d6
+Commit: 6ac00b23d9b869463ced929fa2011db5ea3b879d
 Unit tests: success
 Android lint: success
 Assemble release: success
@@ -32,8 +32,8 @@ Installing Android SDK Build-Tools 30.0.3 in /usr/local/lib/android/sdk/build-to
 > Task :app:compileDebugRenderscript NO-SOURCE
 > Task :app:generateDebugBuildConfig
 > Task :app:javaPreCompileDebug
-> Task :app:generateDebugResValues
 > Task :app:checkDebugAarMetadata
+> Task :app:generateDebugResValues
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:createDebugCompatibleScreenManifests
@@ -42,8 +42,8 @@ Installing Android SDK Build-Tools 30.0.3 in /usr/local/lib/android/sdk/build-to
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:preDebugUnitTestBuild UP-TO-DATE
-> Task :app:javaPreCompileDebugUnitTest
 > Task :app:processDebugJavaRes NO-SOURCE
+> Task :app:javaPreCompileDebugUnitTest
 > Task :app:processDebugUnitTestJavaRes NO-SOURCE
 > Task :app:processDebugManifestForPackage
 > Task :app:processDebugResources
@@ -56,8 +56,8 @@ Note: /home/runner/work/newdashcam/newdashcam/bike-legacy-android-4.4/app/src/ma
 Note: Recompile with -Xlint:deprecation for details.
 3 warnings
 
-> Task :app:bundleDebugClassesToCompileJar
 > Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
 
 > Task :app:compileDebugUnitTestJavaWithJavac
 warning: [options] source value 7 is obsolete and will be removed in a future release
@@ -66,9 +66,9 @@ warning: [options] To suppress warnings about obsolete options, use -Xlint:-opti
 3 warnings
 
 > Task :app:testDebugUnitTest
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/unit_tests-1783966280397.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/unit_tests-1783966737167.json
 
-BUILD SUCCESSFUL in 33s
+BUILD SUCCESSFUL in 34s
 18 actionable tasks: 18 executed
 
 ===== ANDROID LINT =====
@@ -79,9 +79,9 @@ Daemon will be stopped at the end of the build
 > Task :app:compileReleaseAidl NO-SOURCE
 > Task :app:compileReleaseRenderscript NO-SOURCE
 > Task :app:generateReleaseBuildConfig
-> Task :app:generateReleaseResValues
 > Task :app:checkReleaseAarMetadata
 > Task :app:javaPreCompileRelease
+> Task :app:generateReleaseResValues
 > Task :app:mapReleaseSourceSetPaths
 > Task :app:generateReleaseResources
 > Task :app:createReleaseCompatibleScreenManifests
@@ -108,9 +108,9 @@ Note: Recompile with -Xlint:deprecation for details.
 Wrote HTML report to file:///home/runner/work/newdashcam/newdashcam/bike-legacy-android-4.4/app/build/reports/lint-results-release.html
 
 > Task :app:lintRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/lint-1783966311247.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/lint-1783966769216.json
 
-BUILD SUCCESSFUL in 20s
+BUILD SUCCESSFUL in 21s
 18 actionable tasks: 18 executed
 
 ===== RELEASE BUILD =====
@@ -137,24 +137,21 @@ Daemon will be stopped at the end of the build
 > Task :app:mergeReleaseNativeLibs NO-SOURCE
 > Task :app:stripReleaseDebugSymbols NO-SOURCE
 > Task :app:extractReleaseNativeSymbolTables NO-SOURCE
+> Task :app:processReleaseManifestForPackage
 > Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
 > Task :app:checkReleaseDuplicateClasses
 > Task :app:mergeReleaseArtProfile
 > Task :app:mergeReleaseShaders
-> Task :app:mergeExtDexRelease
 > Task :app:compileReleaseShaders NO-SOURCE
 > Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeExtDexRelease
 > Task :app:mergeReleaseAssets
 > Task :app:compressReleaseAssets
 > Task :app:processReleaseJavaRes NO-SOURCE
 > Task :app:collectReleaseDependencies
 > Task :app:mergeReleaseJavaResource
-> Task :app:sdkReleaseDependencyData
-> Task :app:validateSigningRelease
-> Task :app:writeReleaseAppMetadata
-> Task :app:writeReleaseSigningConfigVersions
-> Task :app:processReleaseManifestForPackage
 > Task :app:processReleaseResources
+> Task :app:sdkReleaseDependencyData
 
 > Task :app:compileReleaseJavaWithJavac
 warning: [options] source value 7 is obsolete and will be removed in a future release
@@ -165,18 +162,21 @@ Note: Recompile with -Xlint:deprecation for details.
 3 warnings
 
 > Task :app:dexBuilderRelease
-> Task :app:optimizeReleaseResources
 > Task :app:mergeDexRelease
+> Task :app:validateSigningRelease
 > Task :app:compileReleaseArtProfile
+> Task :app:writeReleaseAppMetadata
+> Task :app:writeReleaseSigningConfigVersions
+> Task :app:optimizeReleaseResources
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:lintVitalAnalyzeRelease
 > Task :app:lintVitalReportRelease
 > Task :app:lintVitalRelease
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1783966332360.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1783966790877.json
 
-BUILD SUCCESSFUL in 14s
+BUILD SUCCESSFUL in 13s
 37 actionable tasks: 37 executed
 
 ===== APK BADGING =====
