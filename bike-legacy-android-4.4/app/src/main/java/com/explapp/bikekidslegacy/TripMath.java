@@ -17,7 +17,7 @@ public final class TripMath {
 
     public static float movementThreshold(float previousAccuracy, float currentAccuracy) {
         float combined = Math.max(0f, previousAccuracy) + Math.max(0f, currentAccuracy);
-        return clamp(combined * 0.12f, 2.5f, 12f);
+        return clamp(combined * 0.35f, 3f, 18f);
     }
 
     public static boolean isPlausibleSegment(float meters, long elapsedMs) {
@@ -40,8 +40,18 @@ public final class TripMath {
     }
 
     public static float smoothSpeed(float oldSpeed, float newSpeed) {
+        if (Float.isNaN(oldSpeed) || Float.isInfinite(oldSpeed)) oldSpeed = 0f;
+        if (Float.isNaN(newSpeed) || Float.isInfinite(newSpeed)) newSpeed = 0f;
         if (oldSpeed <= 0.1f) return newSpeed;
-        return oldSpeed * 0.68f + newSpeed * 0.32f;
+        if (newSpeed < 0.8f) return oldSpeed * 0.45f;
+        return oldSpeed * 0.70f + newSpeed * 0.30f;
+    }
+
+    public static float averageSpeedKmh(float distanceMeters, long durationMs) {
+        if (distanceMeters <= 0f || durationMs <= 0L) return 0f;
+        float hours = durationMs / 3600000f;
+        if (hours <= 0f) return 0f;
+        return clamp((distanceMeters / 1000f) / hours, 0f, MAX_BICYCLE_SPEED_KMH);
     }
 
     public static float clamp(float value, float min, float max) {
