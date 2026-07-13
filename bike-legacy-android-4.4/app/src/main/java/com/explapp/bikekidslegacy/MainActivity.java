@@ -183,13 +183,12 @@ public final class MainActivity extends Activity implements LocationListener {
         rowTwo.addView(averageView, weight());
         rowTwo.addView(space(), new LinearLayout.LayoutParams(dp(6), 1));
         rowTwo.addView(accuracyView, weight());
-        panel.addView(rowTwo, top(6));
+        panel.addView(rowTwo, top(7));
 
-        statusView = text("جاهز لبدء رحلة جديدة", 12, Color.rgb(30, 62, 74), false);
+        statusView = text("جاهز لبدء رحلة جديدة", 13, Color.rgb(30, 62, 74), false);
         statusView.setGravity(Gravity.CENTER);
-        statusView.setMaxLines(2);
-        statusView.setPadding(dp(8), dp(6), dp(8), dp(6));
-        statusView.setBackground(round(Color.rgb(209, 233, 230), 12));
+        statusView.setPadding(dp(8), dp(8), dp(8), dp(8));
+        statusView.setBackground(round(Color.rgb(212, 235, 232), 12));
         panel.addView(statusView, top(7));
 
         LinearLayout controls = new LinearLayout(this);
@@ -207,22 +206,25 @@ public final class MainActivity extends Activity implements LocationListener {
         controls.addView(startPauseButton, weight());
         controls.addView(space(), new LinearLayout.LayoutParams(dp(7), 1));
         controls.addView(finishButton, weight());
-        panel.addView(controls, top(7));
+        panel.addView(controls, top(8));
 
-        Button locationSettings = compactButton("فتح إعدادات الموقع", Color.rgb(82, 105, 116));
+        Button locationSettings = compactButton("إعدادات الموقع", Color.rgb(82, 105, 116));
         locationSettings.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) {
-                try {
-                    startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS));
-                } catch (Exception ex) {
-                    Toast.makeText(MainActivity.this, "تعذر فتح إعدادات الموقع", Toast.LENGTH_SHORT).show();
-                }
+                startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS));
             }
         });
         panel.addView(locationSettings, top(6));
 
         body.addView(panel, new LinearLayout.LayoutParams(0, -1, 1f));
         root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        TextView footer = text("يبدأ احتساب المسافة بعد تثبيت GPS. النقاط الضعيفة والقفزات غير المنطقية لا تُضاف.", 11,
+                Color.rgb(78, 104, 112), false);
+        footer.setGravity(Gravity.CENTER);
+        footer.setPadding(dp(5), dp(5), dp(5), 0);
+        root.addView(footer, match());
+
         setContentView(root);
     }
 
@@ -245,7 +247,7 @@ public final class MainActivity extends Activity implements LocationListener {
         tripStartedWall = System.currentTimeMillis();
         lastFix = null;
         distanceAnchor = null;
-        lastAccuracy = 999f;
+        lastAcceptedElapsed = 0L;
         beginRunning();
     }
 
@@ -257,14 +259,13 @@ public final class MainActivity extends Activity implements LocationListener {
         }
         lastFix = null;
         distanceAnchor = null;
-        lastAccuracy = 999f;
+        lastAcceptedElapsed = 0L;
         beginRunning();
     }
 
     private void beginRunning() {
         state = RUNNING;
         runningStartedElapsed = SystemClock.elapsedRealtime();
-        lastAcceptedElapsed = 0L;
         lastAutosaveElapsed = runningStartedElapsed;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         requestLocationUpdates();
@@ -294,8 +295,7 @@ public final class MainActivity extends Activity implements LocationListener {
 
     private void confirmFinish() {
         if (state == IDLE) return;
-        final long duration = currentDurationMs();
-        final boolean veryShort = duration < 10000L && distanceMeters < 10f;
+        final boolean veryShort = distanceMeters < 5f && currentDurationMs() < 20000L;
         String message = veryShort
                 ? "الرحلة قصيرة جدًا. هل تريد حفظها في السجل أم تجاهلها؟"
                 : "هل تريد إنهاء الرحلة وحفظها في السجل؟";
@@ -393,8 +393,8 @@ public final class MainActivity extends Activity implements LocationListener {
         } else {
             float segment = distanceAnchor.distanceTo(location);
             long elapsed = location.getTime() - distanceAnchor.getTime();
-            float threshold = TripMath.movementThreshold(distanceAnchor.getAccuracy(), accuracy);
-            if (segment >= threshold && TripMath.isPlausibleSegment(segment, elapsed)) {
+            if (TripMath.shouldCountSegment(segment, elapsed,
+                    distanceAnchor.getAccuracy(), accuracy)) {
                 distanceMeters += segment;
                 distanceAnchor = new Location(location);
             } else if (elapsed > 20000L) {
@@ -482,7 +482,7 @@ public final class MainActivity extends Activity implements LocationListener {
         else startPauseButton.setText("بدء رحلة جديدة");
 
         startPauseButton.setBackground(round(state == RUNNING
-                ? Color.rgb(230, 145, 45) : Color.rgb(19, 156, 118), 14));
+                ? Color.rgb(230, 145, 45) : Color.rgb(19, 156, 118), 15));
         finishButton.setEnabled(state != IDLE);
         finishButton.setAlpha(state == IDLE ? .45f : 1f);
     }
@@ -504,8 +504,8 @@ public final class MainActivity extends Activity implements LocationListener {
         maxSpeedKmh = p.getFloat("maxSpeed", 0f);
         accumulatedMs = p.getLong("duration", 0L);
         tripStartedWall = p.getLong("startedWall", 0L);
-        state = savedState == IDLE ? IDLE : PAUSED;
         restoredTrip = savedState != IDLE;
+        state = restoredTrip ? PAUSED : IDLE;
     }
 
     private void clearCurrentTrip() {
@@ -517,8 +517,8 @@ public final class MainActivity extends Activity implements LocationListener {
         tripStartedWall = 0L;
         lastFix = null;
         distanceAnchor = null;
-        lastAccuracy = 999f;
         lastAcceptedElapsed = 0L;
+        lastAccuracy = 999f;
         restoredTrip = false;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .remove("state").remove("distance").remove("maxSpeed")
@@ -536,38 +536,45 @@ public final class MainActivity extends Activity implements LocationListener {
             record.put("duration", duration);
             record.put("distance", Math.round(distance * 10f) / 10f);
             record.put("maxSpeed", Math.round(maxSpeed * 10f) / 10f);
-            record.put("averageSpeed", Math.round(TripMath.averageSpeedKmh(distance, duration) * 10f) / 10f);
             updated.put(record);
-            for (int i = 0; i < old.length() && i < 49; i++) updated.put(old.getJSONObject(i));
+            for (int i = 0; i < old.length() && i < 99; i++) updated.put(old.getJSONObject(i));
             p.edit().putString(HISTORY_KEY, updated.toString()).apply();
         } catch (Exception ignored) { }
     }
 
     private void showHistory() {
         final SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
-        final String body = buildHistoryText(p);
+        StringBuilder body = new StringBuilder();
         int count = 0;
-        try { count = new JSONArray(p.getString(HISTORY_KEY, "[]")).length(); }
-        catch (Exception ignored) { }
+        try {
+            JSONArray history = new JSONArray(p.getString(HISTORY_KEY, "[]"));
+            count = history.length();
+            SimpleDateFormat date = new SimpleDateFormat("yyyy/MM/dd  HH:mm", new Locale("ar"));
+            for (int i = 0; i < history.length(); i++) {
+                JSONObject item = history.getJSONObject(i);
+                long duration = item.optLong("duration");
+                float distance = (float)item.optDouble("distance");
+                body.append(i + 1).append(". ")
+                        .append(date.format(new Date(item.optLong("start")))).append("\n")
+                        .append("المسافة: ").append(formatDistance(distance))
+                        .append("  •  المدة: ").append(formatDuration(duration)).append("\n")
+                        .append("المتوسط: ").append(String.format(Locale.US, "%.1f كم/س",
+                                TripMath.averageSpeedKmh(distance, duration)))
+                        .append("  •  الأعلى: ").append(String.format(Locale.US, "%.1f كم/س",
+                                item.optDouble("maxSpeed"))).append("\n\n");
+            }
+        } catch (Exception ignored) { }
+        if (count == 0) body.append("لا توجد رحلات محفوظة بعد.\nابدأ رحلة ثم اضغط «إنهاء وحفظ».");
 
-        TextView message = text(body, 14, Color.rgb(35, 55, 65), false);
-        message.setPadding(dp(18), dp(8), dp(18), dp(12));
-        message.setLineSpacing(0f, 1.15f);
-        if (Build.VERSION.SDK_INT >= 17) message.setTextDirection(View.TEXT_DIRECTION_RTL);
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(message);
-        scroll.setFillViewport(true);
-
+        final String shareText = body.toString();
         final boolean hasItems = count > 0;
         AlertDialog.Builder dialog = new AlertDialog.Builder(this)
                 .setTitle("سجل الرحلات (" + count + ")")
-                .setView(scroll)
+                .setMessage(shareText)
                 .setPositiveButton("إغلاق", null);
-
         if (hasItems) {
             dialog.setNeutralButton("مشاركة", new DialogInterface.OnClickListener() {
-                @Override public void onClick(DialogInterface d, int which) { shareHistory(body); }
+                @Override public void onClick(DialogInterface d, int which) { shareHistory(shareText); }
             });
             dialog.setNegativeButton("مسح السجل", new DialogInterface.OnClickListener() {
                 @Override public void onClick(DialogInterface d, int which) { confirmClearHistory(); }
@@ -576,45 +583,15 @@ public final class MainActivity extends Activity implements LocationListener {
         dialog.show();
     }
 
-    private String buildHistoryText(SharedPreferences p) {
-        StringBuilder body = new StringBuilder();
-        try {
-            JSONArray history = new JSONArray(p.getString(HISTORY_KEY, "[]"));
-            SimpleDateFormat date = new SimpleDateFormat("yyyy/MM/dd  HH:mm", new Locale("ar"));
-            for (int i = 0; i < history.length(); i++) {
-                JSONObject item = history.getJSONObject(i);
-                long duration = item.optLong("duration");
-                float distance = (float) item.optDouble("distance");
-                double average = item.has("averageSpeed")
-                        ? item.optDouble("averageSpeed")
-                        : TripMath.averageSpeedKmh(distance, duration);
-                body.append(i + 1).append(". ")
-                        .append(date.format(new Date(item.optLong("start")))).append("\n")
-                        .append("المسافة: ").append(formatDistance(distance))
-                        .append("  |  المدة: ").append(formatDuration(duration)).append("\n")
-                        .append("المتوسط: ").append(String.format(Locale.US, "%.1f كم/س", average))
-                        .append("  |  الأعلى: ").append(String.format(Locale.US, "%.1f كم/س",
-                                item.optDouble("maxSpeed"))).append("\n")
-                        .append("────────────────\n");
-            }
-            if (history.length() == 0) {
-                body.append("لا توجد رحلات محفوظة بعد.\nابدأ رحلة ثم اضغط «إنهاء وحفظ».");
-            }
-        } catch (Exception ignored) {
-            body.append("تعذر قراءة سجل الرحلات.");
-        }
-        return body.toString();
-    }
-
     private void shareHistory(String body) {
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("text/plain");
+        share.putExtra(Intent.EXTRA_SUBJECT, "سجل رحلات مغامرة الدراجة");
+        share.putExtra(Intent.EXTRA_TEXT, "سجل رحلات مغامرة الدراجة\n\n" + body);
         try {
-            Intent intent = new Intent(Intent.ACTION_SEND);
-            intent.setType("text/plain");
-            intent.putExtra(Intent.EXTRA_SUBJECT, "سجل رحلات الدراجة");
-            intent.putExtra(Intent.EXTRA_TEXT, "سجل رحلات الدراجة\n\n" + body);
-            startActivity(Intent.createChooser(intent, "مشاركة سجل الرحلات"));
-        } catch (Exception ex) {
-            Toast.makeText(this, "لا يوجد تطبيق مناسب للمشاركة", Toast.LENGTH_SHORT).show();
+            startActivity(Intent.createChooser(share, "مشاركة السجل"));
+        } catch (Exception e) {
+            Toast.makeText(this, "لا يوجد تطبيق متاح للمشاركة", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -656,24 +633,6 @@ public final class MainActivity extends Activity implements LocationListener {
         super.onDestroy();
     }
 
-    @Override public void onBackPressed() {
-        if (state == IDLE) {
-            super.onBackPressed();
-            return;
-        }
-        new AlertDialog.Builder(this)
-                .setTitle("الخروج من الرحلة")
-                .setMessage("سيتم إيقاف الرحلة مؤقتًا وحفظ تقدمها لتتمكن من متابعتها لاحقًا.")
-                .setPositiveButton("إيقاف مؤقت وخروج", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface dialog, int which) {
-                        if (state == RUNNING) pauseTrip();
-                        MainActivity.super.onBackPressed();
-                    }
-                })
-                .setNegativeButton("البقاء", null)
-                .show();
-    }
-
     private String formatDistance(float meters) {
         if (meters < 1000f) return Math.round(meters) + " م";
         return String.format(Locale.US, "%.2f كم", meters / 1000f);
@@ -686,12 +645,12 @@ public final class MainActivity extends Activity implements LocationListener {
     }
 
     private TextView stat(String label, String value) {
-        TextView view = text(label + "\n" + value, 12, Color.rgb(25, 64, 77), true);
-        view.setGravity(Gravity.CENTER);
-        view.setMinHeight(dp(54));
-        view.setPadding(dp(3), dp(6), dp(3), dp(6));
-        view.setBackground(round(Color.WHITE, 12));
-        return view;
+        TextView v = text(label + "\n" + value, 12, Color.rgb(25, 64, 77), true);
+        v.setGravity(Gravity.CENTER);
+        v.setPadding(dp(3), dp(8), dp(3), dp(8));
+        v.setBackground(round(Color.WHITE, 12));
+        v.setMinHeight(dp(58));
+        return v;
     }
 
     private TextView text(String value, int size, int color, boolean bold) {
@@ -704,23 +663,23 @@ public final class MainActivity extends Activity implements LocationListener {
     }
 
     private Button button(String label, int color) {
-        Button button = new Button(this);
-        button.setText(label);
-        button.setTextColor(Color.WHITE);
-        button.setTextSize(14);
-        button.setAllCaps(false);
-        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        button.setBackground(round(color, 14));
-        button.setPadding(dp(6), dp(5), dp(6), dp(5));
-        button.setMinHeight(dp(46));
-        return button;
+        Button b = new Button(this);
+        b.setText(label);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(14);
+        b.setAllCaps(false);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setBackground(round(color, 14));
+        b.setPadding(dp(7), dp(7), dp(7), dp(7));
+        b.setMinHeight(dp(48));
+        return b;
     }
 
     private Button compactButton(String label, int color) {
-        Button button = button(label, color);
-        button.setTextSize(12);
-        button.setMinHeight(dp(40));
-        return button;
+        Button b = button(label, color);
+        b.setTextSize(12);
+        b.setMinHeight(dp(42));
+        return b;
     }
 
     private GradientDrawable round(int color, int radius) {
@@ -737,11 +696,9 @@ public final class MainActivity extends Activity implements LocationListener {
     private View space() { return new View(this); }
     private LinearLayout.LayoutParams match() { return new LinearLayout.LayoutParams(-1, -2); }
     private LinearLayout.LayoutParams top(int margin) {
-        LinearLayout.LayoutParams params = match();
-        params.topMargin = dp(margin);
-        return params;
+        LinearLayout.LayoutParams p = match();
+        p.topMargin = dp(margin);
+        return p;
     }
-    private LinearLayout.LayoutParams weight() {
-        return new LinearLayout.LayoutParams(0, -2, 1f);
-    }
+    private LinearLayout.LayoutParams weight() { return new LinearLayout.LayoutParams(0, -2, 1f); }
 }
