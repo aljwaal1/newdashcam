@@ -39,35 +39,103 @@ jobs:
           gradle-version: '7.6.4'
 
       - name: Run unit tests
-        run: gradle -p bike-legacy-android-4.4 testDebugUnitTest --stacktrace --no-daemon
+        id: unit_tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          gradle -p bike-legacy-android-4.4 testDebugUnitTest --stacktrace --no-daemon > /tmp/bike-unit-tests.log 2>&1
+          code=$?
+          tail -n 250 /tmp/bike-unit-tests.log
+          exit $code
 
       - name: Run Android lint
-        run: gradle -p bike-legacy-android-4.4 lintRelease --stacktrace --no-daemon
+        id: lint
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          gradle -p bike-legacy-android-4.4 lintRelease --stacktrace --no-daemon > /tmp/bike-lint.log 2>&1
+          code=$?
+          tail -n 250 /tmp/bike-lint.log
+          exit $code
 
       - name: Build signed release APK
-        run: gradle -p bike-legacy-android-4.4 clean assembleRelease --stacktrace --no-daemon
+        id: assemble
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          gradle -p bike-legacy-android-4.4 clean assembleRelease --stacktrace --no-daemon > /tmp/bike-build.log 2>&1
+          code=$?
+          tail -n 300 /tmp/bike-build.log
+          exit $code
 
       - name: Verify Android 4.4 compatibility and stage APK
+        id: verify
+        if: steps.assemble.outcome == 'success'
+        shell: bash
         run: |
           set -euo pipefail
           APK="$(find bike-legacy-android-4.4/app/build/outputs/apk/release -type f -name '*release*.apk' | head -n 1)"
           test -s "$APK"
           unzip -t "$APK" >/dev/null
           "$ANDROID_HOME/build-tools/33.0.2/apksigner" verify --verbose --print-certs "$APK"
-          "$ANDROID_HOME/build-tools/33.0.2/aapt" dump badging "$APK" | tee /tmp/badging.txt
-          grep -q "sdkVersion:'19'" /tmp/badging.txt
+          "$ANDROID_HOME/build-tools/33.0.2/aapt" dump badging "$APK" | tee /tmp/bike-badging.txt
+          grep -q "sdkVersion:'19'" /tmp/bike-badging.txt
           mkdir -p apk
           cp "$APK" apk/bike-adventure-android-4.4.apk
 
+      - name: Write build report
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p apk
+          {
+            echo "Bike Adventure Android 4.4 build report"
+            echo "Commit: $GITHUB_SHA"
+            echo "Unit tests: ${{ steps.unit_tests.outcome }}"
+            echo "Android lint: ${{ steps.lint.outcome }}"
+            echo "Assemble release: ${{ steps.assemble.outcome }}"
+            echo "APK verification: ${{ steps.verify.outcome }}"
+            echo
+            echo "===== UNIT TESTS ====="
+            tail -n 180 /tmp/bike-unit-tests.log 2>/dev/null || true
+            echo
+            echo "===== ANDROID LINT ====="
+            tail -n 180 /tmp/bike-lint.log 2>/dev/null || true
+            echo
+            echo "===== RELEASE BUILD ====="
+            tail -n 220 /tmp/bike-build.log 2>/dev/null || true
+            echo
+            echo "===== APK BADGING ====="
+            cat /tmp/bike-badging.txt 2>/dev/null || true
+          } > apk/bike-adventure-build-report.txt
+
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: bike-adventure-android-4.4-release
-          path: apk/bike-adventure-android-4.4.apk
+          name: bike-adventure-android-4.4-diagnostics
+          path: |
+            apk/bike-adventure-build-report.txt
+            apk/bike-adventure-android-4.4.apk
           if-no-files-found: error
 
-      - name: Commit APK only when changed
+      - name: Commit APK and report
+        if: always()
+        shell: bash
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add apk/bike-adventure-android-4.4.apk
-          git diff --cached --quiet || (git commit -m 'Build Bike Adventure Android 4.4 release APK' && git push origin HEAD:android-4.4)
+          git add apk/bike-adventure-build-report.txt
+          test ! -f apk/bike-adventure-android-4.4.apk || git add apk/bike-adventure-android-4.4.apk
+          git diff --cached --quiet || (git commit -m 'Build Bike Adventure Android 4.4 diagnostics' && git push origin HEAD:android-4.4)
+
+      - name: Enforce quality gate
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.unit_tests.outcome }}" = "success"
+          test "${{ steps.lint.outcome }}" = "success"
+          test "${{ steps.assemble.outcome }}" = "success"
+          test "${{ steps.verify.outcome }}" = "success"
