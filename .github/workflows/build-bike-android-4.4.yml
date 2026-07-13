@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: bike-adventure-android-4.4
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -38,30 +38,36 @@ jobs:
         with:
           gradle-version: '7.6.4'
 
-      - name: Run GPS logic tests
+      - name: Run unit tests
         run: gradle -p bike-legacy-android-4.4 testDebugUnitTest --stacktrace --no-daemon
 
-      - name: Build Android 4.4 APK
-        run: gradle -p bike-legacy-android-4.4 clean assembleDebug --stacktrace --no-daemon
+      - name: Run Android lint
+        run: gradle -p bike-legacy-android-4.4 lintRelease --stacktrace --no-daemon
 
-      - name: Verify and stage APK
+      - name: Build signed release APK
+        run: gradle -p bike-legacy-android-4.4 clean assembleRelease --stacktrace --no-daemon
+
+      - name: Verify Android 4.4 compatibility and stage APK
         run: |
           set -euo pipefail
-          APK="$(find bike-legacy-android-4.4/app/build/outputs/apk -type f -name '*debug*.apk' | head -n 1)"
+          APK="$(find bike-legacy-android-4.4/app/build/outputs/apk/release -type f -name '*release*.apk' | head -n 1)"
           test -s "$APK"
           unzip -t "$APK" >/dev/null
           "$ANDROID_HOME/build-tools/33.0.2/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_HOME/build-tools/33.0.2/aapt" dump badging "$APK" | tee /tmp/badging.txt
+          grep -q "sdkVersion:'19'" /tmp/badging.txt
           mkdir -p apk
           cp "$APK" apk/bike-adventure-android-4.4.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: bike-adventure-android-4.4
+          name: bike-adventure-android-4.4-release
           path: apk/bike-adventure-android-4.4.apk
+          if-no-files-found: error
 
       - name: Commit APK only when changed
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add apk/bike-adventure-android-4.4.apk
-          git diff --cached --quiet || (git commit -m 'Build Bike Adventure Android 4.4 APK' && git push origin HEAD:android-4.4)
+          git diff --cached --quiet || (git commit -m 'Build Bike Adventure Android 4.4 release APK' && git push origin HEAD:android-4.4)
