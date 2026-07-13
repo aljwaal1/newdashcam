@@ -37,16 +37,30 @@ import java.util.Locale;
 
 public final class MainActivity extends Activity implements LocationListener {
     private static final int LOCATION_REQUEST = 41;
-    private static final String PREFS = "bike_trip_v2";
+    private static final String PREFS = "bike_trip_v3";
     private static final String HISTORY_KEY = "history";
     private static final int IDLE = 0;
     private static final int RUNNING = 1;
     private static final int PAUSED = 2;
+    private static final long SPEED_STALE_MS = 4500L;
+    private static final long AUTOSAVE_INTERVAL_MS = 5000L;
 
     private final Handler handler = new Handler();
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
             if (state == RUNNING) {
+                long now = SystemClock.elapsedRealtime();
+                if (lastAcceptedElapsed > 0L && now - lastAcceptedElapsed > SPEED_STALE_MS) {
+                    displayedSpeedKmh = 0f;
+                    if (roadView != null) roadView.setSpeed(0f);
+                    if (statusView != null) {
+                        statusView.setText("إشارة GPS متوقفة مؤقتًا — لم تُحتسب نقاط جديدة");
+                    }
+                }
+                if (now - lastAutosaveElapsed >= AUTOSAVE_INTERVAL_MS) {
+                    saveCurrentTrip();
+                    lastAutosaveElapsed = now;
+                }
                 refreshDashboard();
                 handler.postDelayed(this, 1000L);
             }
@@ -56,8 +70,10 @@ public final class MainActivity extends Activity implements LocationListener {
     private LocationManager locationManager;
     private RoadView roadView;
     private TextView speedView;
+    private TextView maxSpeedView;
     private TextView distanceView;
     private TextView durationView;
+    private TextView averageView;
     private TextView accuracyView;
     private TextView statusView;
     private Button startPauseButton;
@@ -71,8 +87,11 @@ public final class MainActivity extends Activity implements LocationListener {
     private long accumulatedMs;
     private long runningStartedElapsed;
     private long tripStartedWall;
+    private long lastAcceptedElapsed;
+    private long lastAutosaveElapsed;
     private Location lastFix;
     private Location distanceAnchor;
+    private boolean restoredTrip;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -80,66 +99,98 @@ public final class MainActivity extends Activity implements LocationListener {
         loadInterruptedTrip();
         buildScreen();
         refreshDashboard();
+        if (restoredTrip) {
+            statusView.setText("تمت استعادة رحلة سابقة بحالة إيقاف مؤقت — تابعها أو أنهِها");
+        }
     }
 
     private void buildScreen() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(Color.rgb(238, 247, 247));
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(12), dp(10), dp(12), dp(18));
+        root.setPadding(dp(10), dp(8), dp(10), dp(9));
+        root.setBackgroundColor(Color.rgb(235, 244, 245));
         if (Build.VERSION.SDK_INT >= 17) root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
         LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
         header.setOrientation(LinearLayout.HORIZONTAL);
-        TextView title = text("مغامرة", 25, Color.rgb(18, 48, 71), true);
-        header.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(4), 0, dp(4), dp(5));
+
+        LinearLayout titleBlock = new LinearLayout(this);
+        titleBlock.setOrientation(LinearLayout.VERTICAL);
+        TextView title = text("مغامرة الدراجة", 22, Color.rgb(18, 48, 71), true);
+        TextView subtitle = text("متتبع رحلة خفيف ومتوافق مع Android 4.4", 11,
+                Color.rgb(74, 100, 111), false);
+        titleBlock.addView(title, match());
+        titleBlock.addView(subtitle, match());
+        header.addView(titleBlock, new LinearLayout.LayoutParams(0, -2, 1f));
+
         Button history = compactButton("سجل الرحلات", Color.rgb(40, 105, 139));
         history.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) { showHistory(); }
         });
-        header.addView(history);
+        header.addView(history, new LinearLayout.LayoutParams(dp(122), dp(44)));
         root.addView(header, match());
 
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.HORIZONTAL);
+        body.setGravity(Gravity.CENTER);
+        if (Build.VERSION.SDK_INT >= 17) body.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+
         roadView = new RoadView(this);
-        LinearLayout.LayoutParams roadParams = new LinearLayout.LayoutParams(-1, dp(240));
-        roadParams.topMargin = dp(8);
         roadView.setBackground(round(Color.WHITE, 18));
-        root.addView(roadView, roadParams);
+        LinearLayout.LayoutParams roadParams = new LinearLayout.LayoutParams(0, -1, 1.55f);
+        roadParams.rightMargin = dp(9);
+        body.addView(roadView, roadParams);
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setGravity(Gravity.CENTER);
+        if (Build.VERSION.SDK_INT >= 17) panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
         LinearLayout speedCard = new LinearLayout(this);
         speedCard.setOrientation(LinearLayout.VERTICAL);
         speedCard.setGravity(Gravity.CENTER);
-        speedCard.setPadding(dp(8), dp(8), dp(8), dp(8));
-        speedCard.setBackground(round(Color.rgb(18, 48, 71), 18));
-        TextView speedCaption = text("السرعة الحالية", 13, Color.rgb(181, 219, 231), false);
+        speedCard.setPadding(dp(6), dp(6), dp(6), dp(6));
+        speedCard.setBackground(round(Color.rgb(18, 48, 71), 16));
+
+        TextView speedCaption = text("السرعة الحالية", 12, Color.rgb(181, 219, 231), false);
         speedCaption.setGravity(Gravity.CENTER);
-        speedView = text("0.0 كم/س", 34, Color.WHITE, true);
+        speedView = text("0.0 كم/س", 30, Color.WHITE, true);
         speedView.setGravity(Gravity.CENTER);
+        maxSpeedView = text("الأعلى: 0.0 كم/س", 11, Color.rgb(181, 219, 231), false);
+        maxSpeedView.setGravity(Gravity.CENTER);
         speedCard.addView(speedCaption, match());
         speedCard.addView(speedView, match());
-        root.addView(speedCard, top(8));
+        speedCard.addView(maxSpeedView, match());
+        panel.addView(speedCard, new LinearLayout.LayoutParams(-1, dp(102)));
 
-        LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout rowOne = new LinearLayout(this);
+        rowOne.setOrientation(LinearLayout.HORIZONTAL);
         distanceView = stat("المسافة", "0 م");
         durationView = stat("المدة", "00:00:00");
-        accuracyView = stat("دقة GPS", "بانتظار الإشارة");
-        stats.addView(distanceView, weight());
-        stats.addView(space(), new LinearLayout.LayoutParams(dp(6), 1));
-        stats.addView(durationView, weight());
-        stats.addView(space(), new LinearLayout.LayoutParams(dp(6), 1));
-        stats.addView(accuracyView, weight());
-        root.addView(stats, top(8));
+        rowOne.addView(distanceView, weight());
+        rowOne.addView(space(), new LinearLayout.LayoutParams(dp(6), 1));
+        rowOne.addView(durationView, weight());
+        panel.addView(rowOne, top(7));
 
-        statusView = text("جاهز لبدء رحلة جديدة", 14, Color.rgb(30, 62, 74), false);
+        LinearLayout rowTwo = new LinearLayout(this);
+        rowTwo.setOrientation(LinearLayout.HORIZONTAL);
+        averageView = stat("المتوسط", "0.0 كم/س");
+        accuracyView = stat("دقة GPS", "بانتظار الإشارة");
+        rowTwo.addView(averageView, weight());
+        rowTwo.addView(space(), new LinearLayout.LayoutParams(dp(6), 1));
+        rowTwo.addView(accuracyView, weight());
+        panel.addView(rowTwo, top(6));
+
+        statusView = text("جاهز لبدء رحلة جديدة", 12, Color.rgb(30, 62, 74), false);
         statusView.setGravity(Gravity.CENTER);
-        statusView.setPadding(dp(10), dp(10), dp(10), dp(10));
-        statusView.setBackground(round(Color.rgb(212, 235, 232), 13));
-        root.addView(statusView, top(8));
+        statusView.setMaxLines(2);
+        statusView.setPadding(dp(8), dp(6), dp(8), dp(6));
+        statusView.setBackground(round(Color.rgb(209, 233, 230), 12));
+        panel.addView(statusView, top(7));
 
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
@@ -154,26 +205,25 @@ public final class MainActivity extends Activity implements LocationListener {
             @Override public void onClick(View view) { confirmFinish(); }
         });
         controls.addView(startPauseButton, weight());
-        controls.addView(space(), new LinearLayout.LayoutParams(dp(8), 1));
+        controls.addView(space(), new LinearLayout.LayoutParams(dp(7), 1));
         controls.addView(finishButton, weight());
-        root.addView(controls, top(10));
+        panel.addView(controls, top(7));
 
-        Button locationSettings = compactButton("إعدادات الموقع", Color.rgb(82, 105, 116));
+        Button locationSettings = compactButton("فتح إعدادات الموقع", Color.rgb(82, 105, 116));
         locationSettings.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) {
-                startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+                try {
+                    startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+                } catch (Exception ex) {
+                    Toast.makeText(MainActivity.this, "تعذر فتح إعدادات الموقع", Toast.LENGTH_SHORT).show();
+                }
             }
         });
-        root.addView(locationSettings, top(7));
+        panel.addView(locationSettings, top(6));
 
-        TextView footer = text("المسافة لا تُحتسب إلا عند وجود إشارة دقيقة وحركة منطقية، ويُحفظ السجل محليًا.", 12,
-                Color.rgb(78, 104, 112), false);
-        footer.setGravity(Gravity.CENTER);
-        footer.setPadding(dp(8), dp(10), dp(8), 0);
-        root.addView(footer, match());
-
-        scroll.addView(root);
-        setContentView(scroll);
+        body.addView(panel, new LinearLayout.LayoutParams(0, -1, 1f));
+        root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1f));
+        setContentView(root);
     }
 
     private void onStartPausePressed() {
@@ -195,6 +245,7 @@ public final class MainActivity extends Activity implements LocationListener {
         tripStartedWall = System.currentTimeMillis();
         lastFix = null;
         distanceAnchor = null;
+        lastAccuracy = 999f;
         beginRunning();
     }
 
@@ -206,12 +257,15 @@ public final class MainActivity extends Activity implements LocationListener {
         }
         lastFix = null;
         distanceAnchor = null;
+        lastAccuracy = 999f;
         beginRunning();
     }
 
     private void beginRunning() {
         state = RUNNING;
         runningStartedElapsed = SystemClock.elapsedRealtime();
+        lastAcceptedElapsed = 0L;
+        lastAutosaveElapsed = runningStartedElapsed;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         requestLocationUpdates();
         handler.removeCallbacks(ticker);
@@ -231,6 +285,7 @@ public final class MainActivity extends Activity implements LocationListener {
         displayedSpeedKmh = 0f;
         lastFix = null;
         distanceAnchor = null;
+        lastAcceptedElapsed = 0L;
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         statusView.setText("الرحلة متوقفة مؤقتًا — يمكنك المتابعة أو الإنهاء والحفظ");
         saveCurrentTrip();
@@ -239,17 +294,27 @@ public final class MainActivity extends Activity implements LocationListener {
 
     private void confirmFinish() {
         if (state == IDLE) return;
-        new AlertDialog.Builder(this)
+        final long duration = currentDurationMs();
+        final boolean veryShort = duration < 10000L && distanceMeters < 10f;
+        String message = veryShort
+                ? "الرحلة قصيرة جدًا. هل تريد حفظها في السجل أم تجاهلها؟"
+                : "هل تريد إنهاء الرحلة وحفظها في السجل؟";
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
                 .setTitle("إنهاء الرحلة")
-                .setMessage("هل تريد إنهاء الرحلة وحفظها في السجل؟")
+                .setMessage(message)
                 .setPositiveButton("إنهاء وحفظ", new DialogInterface.OnClickListener() {
-                    @Override public void onClick(DialogInterface dialog, int which) { finishTrip(); }
+                    @Override public void onClick(DialogInterface dialog, int which) { finishTrip(true); }
                 })
-                .setNegativeButton("إلغاء", null)
-                .show();
+                .setNegativeButton("إلغاء", null);
+        if (veryShort) {
+            builder.setNeutralButton("تجاهل الرحلة", new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface dialog, int which) { finishTrip(false); }
+            });
+        }
+        builder.show();
     }
 
-    private void finishTrip() {
+    private void finishTrip(boolean saveRecord) {
         long duration = currentDurationMs();
         if (state == RUNNING) {
             accumulatedMs = duration;
@@ -258,10 +323,15 @@ public final class MainActivity extends Activity implements LocationListener {
         state = IDLE;
         handler.removeCallbacks(ticker);
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        saveHistoryRecord(tripStartedWall == 0L ? System.currentTimeMillis() - duration : tripStartedWall,
-                System.currentTimeMillis(), duration, distanceMeters, maxSpeedKmh);
-        statusView.setText("تم إنهاء الرحلة وحفظها في السجل");
-        Toast.makeText(this, "تم حفظ الرحلة", Toast.LENGTH_SHORT).show();
+        if (saveRecord) {
+            saveHistoryRecord(tripStartedWall == 0L ? System.currentTimeMillis() - duration : tripStartedWall,
+                    System.currentTimeMillis(), duration, distanceMeters, maxSpeedKmh);
+            statusView.setText("تم إنهاء الرحلة وحفظها في السجل");
+            Toast.makeText(this, "تم حفظ الرحلة", Toast.LENGTH_SHORT).show();
+        } else {
+            statusView.setText("تم تجاهل الرحلة القصيرة");
+            Toast.makeText(this, "لم تُحفظ الرحلة", Toast.LENGTH_SHORT).show();
+        }
         clearCurrentTrip();
         refreshDashboard();
     }
@@ -271,13 +341,13 @@ public final class MainActivity extends Activity implements LocationListener {
         boolean requested = false;
         try {
             if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this);
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 1f, this);
                 requested = true;
             }
         } catch (Exception ignored) { }
         try {
             if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2500L, 0f, this);
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 3000L, 3f, this);
                 requested = true;
             }
         } catch (Exception ignored) { }
@@ -293,16 +363,13 @@ public final class MainActivity extends Activity implements LocationListener {
         if (state != RUNNING || location == null) return;
         float accuracy = location.hasAccuracy() ? location.getAccuracy() : 999f;
         lastAccuracy = accuracy;
-        long now = System.currentTimeMillis();
+        long nowWall = System.currentTimeMillis();
 
-        if (!TripMath.isUsableFix(now, location.getTime(), location.hasAccuracy(), accuracy)) {
+        if (!TripMath.isUsableFix(nowWall, location.getTime(), location.hasAccuracy(), accuracy)) {
             accuracyView.setText("دقة GPS\n" + (location.hasAccuracy() ? Math.round(accuracy) + " م" : "غير متوفرة"));
             statusView.setText(accuracy > TripMath.MAX_ACCURACY_METERS
                     ? "إشارة ضعيفة (" + Math.round(accuracy) + " م) — لم تُحتسب هذه النقطة"
                     : "بانتظار إشارة GPS حديثة");
-            displayedSpeedKmh = 0f;
-            roadView.setSpeed(0f);
-            refreshDashboard();
             return;
         }
 
@@ -336,12 +403,12 @@ public final class MainActivity extends Activity implements LocationListener {
         }
 
         lastFix = new Location(location);
+        lastAcceptedElapsed = SystemClock.elapsedRealtime();
         accuracyView.setText("دقة GPS\n" + Math.round(accuracy) + " م");
-        statusView.setText(accuracy <= 12f ? "إشارة ممتازة — التسجيل دقيق"
-                : accuracy <= 25f ? "إشارة جيدة — الرحلة قيد التسجيل"
+        statusView.setText(accuracy <= 10f ? "إشارة ممتازة — التسجيل دقيق"
+                : accuracy <= 22f ? "إشارة جيدة — الرحلة قيد التسجيل"
                 : "إشارة مقبولة — يفضّل مكان أكثر انفتاحًا");
         roadView.setSpeed(displayedSpeedKmh);
-        saveCurrentTrip();
         refreshDashboard();
     }
 
@@ -351,8 +418,13 @@ public final class MainActivity extends Activity implements LocationListener {
         if (timeDelta < -2000L) return false;
         float candidateAccuracy = candidate.hasAccuracy() ? candidate.getAccuracy() : 999f;
         float currentAccuracy = current.hasAccuracy() ? current.getAccuracy() : 999f;
+        boolean candidateGps = LocationManager.GPS_PROVIDER.equals(candidate.getProvider());
+        boolean currentGps = LocationManager.GPS_PROVIDER.equals(current.getProvider());
+
+        if (candidateGps && !currentGps && candidateAccuracy <= currentAccuracy + 12f) return true;
+        if (!candidateGps && currentGps && timeDelta < 7000L && candidateAccuracy >= currentAccuracy) return false;
         if (timeDelta > 10000L) return true;
-        if (candidateAccuracy <= currentAccuracy + 8f && timeDelta >= 0L) return true;
+        if (candidateAccuracy <= currentAccuracy + 6f && timeDelta >= 0L) return true;
         return candidateAccuracy < currentAccuracy - 5f;
     }
 
@@ -395,9 +467,13 @@ public final class MainActivity extends Activity implements LocationListener {
 
     private void refreshDashboard() {
         if (speedView == null) return;
+        long duration = currentDurationMs();
+        float average = TripMath.averageSpeedKmh(distanceMeters, duration);
         speedView.setText(String.format(Locale.US, "%.1f كم/س", state == RUNNING ? displayedSpeedKmh : 0f));
+        maxSpeedView.setText(String.format(Locale.US, "الأعلى: %.1f كم/س", maxSpeedKmh));
         distanceView.setText("المسافة\n" + formatDistance(distanceMeters));
-        durationView.setText("المدة\n" + formatDuration(currentDurationMs()));
+        durationView.setText("المدة\n" + formatDuration(duration));
+        averageView.setText(String.format(Locale.US, "المتوسط\n%.1f كم/س", average));
         if (lastAccuracy >= 999f) accuracyView.setText("دقة GPS\nبانتظار الإشارة");
         roadView.setSpeed(state == RUNNING ? displayedSpeedKmh : 0f);
 
@@ -406,7 +482,7 @@ public final class MainActivity extends Activity implements LocationListener {
         else startPauseButton.setText("بدء رحلة جديدة");
 
         startPauseButton.setBackground(round(state == RUNNING
-                ? Color.rgb(230, 145, 45) : Color.rgb(19, 156, 118), 15));
+                ? Color.rgb(230, 145, 45) : Color.rgb(19, 156, 118), 14));
         finishButton.setEnabled(state != IDLE);
         finishButton.setAlpha(state == IDLE ? .45f : 1f);
     }
@@ -429,6 +505,7 @@ public final class MainActivity extends Activity implements LocationListener {
         accumulatedMs = p.getLong("duration", 0L);
         tripStartedWall = p.getLong("startedWall", 0L);
         state = savedState == IDLE ? IDLE : PAUSED;
+        restoredTrip = savedState != IDLE;
     }
 
     private void clearCurrentTrip() {
@@ -441,6 +518,8 @@ public final class MainActivity extends Activity implements LocationListener {
         lastFix = null;
         distanceAnchor = null;
         lastAccuracy = 999f;
+        lastAcceptedElapsed = 0L;
+        restoredTrip = false;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .remove("state").remove("distance").remove("maxSpeed")
                 .remove("duration").remove("startedWall").apply();
@@ -457,6 +536,7 @@ public final class MainActivity extends Activity implements LocationListener {
             record.put("duration", duration);
             record.put("distance", Math.round(distance * 10f) / 10f);
             record.put("maxSpeed", Math.round(maxSpeed * 10f) / 10f);
+            record.put("averageSpeed", Math.round(TripMath.averageSpeedKmh(distance, duration) * 10f) / 10f);
             updated.put(record);
             for (int i = 0; i < old.length() && i < 49; i++) updated.put(old.getJSONObject(i));
             p.edit().putString(HISTORY_KEY, updated.toString()).apply();
@@ -465,33 +545,77 @@ public final class MainActivity extends Activity implements LocationListener {
 
     private void showHistory() {
         final SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
-        StringBuilder body = new StringBuilder();
+        final String body = buildHistoryText(p);
         int count = 0;
-        try {
-            JSONArray history = new JSONArray(p.getString(HISTORY_KEY, "[]"));
-            count = history.length();
-            SimpleDateFormat date = new SimpleDateFormat("yyyy/MM/dd  HH:mm", new Locale("ar"));
-            for (int i = 0; i < history.length(); i++) {
-                JSONObject item = history.getJSONObject(i);
-                body.append(i + 1).append(". ")
-                        .append(date.format(new Date(item.optLong("start")))).append("\n")
-                        .append("المسافة: ").append(formatDistance((float)item.optDouble("distance")))
-                        .append("  •  المدة: ").append(formatDuration(item.optLong("duration"))).append("\n")
-                        .append("أعلى سرعة: ").append(String.format(Locale.US, "%.1f كم/س",
-                                item.optDouble("maxSpeed"))).append("\n\n");
-            }
-        } catch (Exception ignored) { }
-        if (count == 0) body.append("لا توجد رحلات محفوظة بعد.\nابدأ رحلة ثم اضغط «إنهاء وحفظ».");
+        try { count = new JSONArray(p.getString(HISTORY_KEY, "[]")).length(); }
+        catch (Exception ignored) { }
+
+        TextView message = text(body, 14, Color.rgb(35, 55, 65), false);
+        message.setPadding(dp(18), dp(8), dp(18), dp(12));
+        message.setLineSpacing(0f, 1.15f);
+        if (Build.VERSION.SDK_INT >= 17) message.setTextDirection(View.TEXT_DIRECTION_RTL);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(message);
+        scroll.setFillViewport(true);
 
         final boolean hasItems = count > 0;
         AlertDialog.Builder dialog = new AlertDialog.Builder(this)
                 .setTitle("سجل الرحلات (" + count + ")")
-                .setMessage(body.toString())
+                .setView(scroll)
                 .setPositiveButton("إغلاق", null);
-        if (hasItems) dialog.setNegativeButton("مسح السجل", new DialogInterface.OnClickListener() {
-            @Override public void onClick(DialogInterface d, int which) { confirmClearHistory(); }
-        });
+
+        if (hasItems) {
+            dialog.setNeutralButton("مشاركة", new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface d, int which) { shareHistory(body); }
+            });
+            dialog.setNegativeButton("مسح السجل", new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface d, int which) { confirmClearHistory(); }
+            });
+        }
         dialog.show();
+    }
+
+    private String buildHistoryText(SharedPreferences p) {
+        StringBuilder body = new StringBuilder();
+        try {
+            JSONArray history = new JSONArray(p.getString(HISTORY_KEY, "[]"));
+            SimpleDateFormat date = new SimpleDateFormat("yyyy/MM/dd  HH:mm", new Locale("ar"));
+            for (int i = 0; i < history.length(); i++) {
+                JSONObject item = history.getJSONObject(i);
+                long duration = item.optLong("duration");
+                float distance = (float) item.optDouble("distance");
+                double average = item.has("averageSpeed")
+                        ? item.optDouble("averageSpeed")
+                        : TripMath.averageSpeedKmh(distance, duration);
+                body.append(i + 1).append(". ")
+                        .append(date.format(new Date(item.optLong("start")))).append("\n")
+                        .append("المسافة: ").append(formatDistance(distance))
+                        .append("  |  المدة: ").append(formatDuration(duration)).append("\n")
+                        .append("المتوسط: ").append(String.format(Locale.US, "%.1f كم/س", average))
+                        .append("  |  الأعلى: ").append(String.format(Locale.US, "%.1f كم/س",
+                                item.optDouble("maxSpeed"))).append("\n")
+                        .append("────────────────\n");
+            }
+            if (history.length() == 0) {
+                body.append("لا توجد رحلات محفوظة بعد.\nابدأ رحلة ثم اضغط «إنهاء وحفظ».");
+            }
+        } catch (Exception ignored) {
+            body.append("تعذر قراءة سجل الرحلات.");
+        }
+        return body.toString();
+    }
+
+    private void shareHistory(String body) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_SUBJECT, "سجل رحلات الدراجة");
+            intent.putExtra(Intent.EXTRA_TEXT, "سجل رحلات الدراجة\n\n" + body);
+            startActivity(Intent.createChooser(intent, "مشاركة سجل الرحلات"));
+        } catch (Exception ex) {
+            Toast.makeText(this, "لا يوجد تطبيق مناسب للمشاركة", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void confirmClearHistory() {
@@ -532,6 +656,24 @@ public final class MainActivity extends Activity implements LocationListener {
         super.onDestroy();
     }
 
+    @Override public void onBackPressed() {
+        if (state == IDLE) {
+            super.onBackPressed();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("الخروج من الرحلة")
+                .setMessage("سيتم إيقاف الرحلة مؤقتًا وحفظ تقدمها لتتمكن من متابعتها لاحقًا.")
+                .setPositiveButton("إيقاف مؤقت وخروج", new DialogInterface.OnClickListener() {
+                    @Override public void onClick(DialogInterface dialog, int which) {
+                        if (state == RUNNING) pauseTrip();
+                        MainActivity.super.onBackPressed();
+                    }
+                })
+                .setNegativeButton("البقاء", null)
+                .show();
+    }
+
     private String formatDistance(float meters) {
         if (meters < 1000f) return Math.round(meters) + " م";
         return String.format(Locale.US, "%.2f كم", meters / 1000f);
@@ -544,11 +686,12 @@ public final class MainActivity extends Activity implements LocationListener {
     }
 
     private TextView stat(String label, String value) {
-        TextView v = text(label + "\n" + value, 13, Color.rgb(25, 64, 77), true);
-        v.setGravity(Gravity.CENTER);
-        v.setPadding(dp(3), dp(10), dp(3), dp(10));
-        v.setBackground(round(Color.WHITE, 13));
-        return v;
+        TextView view = text(label + "\n" + value, 12, Color.rgb(25, 64, 77), true);
+        view.setGravity(Gravity.CENTER);
+        view.setMinHeight(dp(54));
+        view.setPadding(dp(3), dp(6), dp(3), dp(6));
+        view.setBackground(round(Color.WHITE, 12));
+        return view;
     }
 
     private TextView text(String value, int size, int color, boolean bold) {
@@ -561,22 +704,23 @@ public final class MainActivity extends Activity implements LocationListener {
     }
 
     private Button button(String label, int color) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setTextColor(Color.WHITE);
-        b.setTextSize(16);
-        b.setAllCaps(false);
-        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setBackground(round(color, 15));
-        b.setPadding(dp(8), dp(8), dp(8), dp(8));
-        return b;
+        Button button = new Button(this);
+        button.setText(label);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(14);
+        button.setAllCaps(false);
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setBackground(round(color, 14));
+        button.setPadding(dp(6), dp(5), dp(6), dp(5));
+        button.setMinHeight(dp(46));
+        return button;
     }
 
     private Button compactButton(String label, int color) {
-        Button b = button(label, color);
-        b.setTextSize(13);
-        b.setMinHeight(dp(42));
-        return b;
+        Button button = button(label, color);
+        button.setTextSize(12);
+        button.setMinHeight(dp(40));
+        return button;
     }
 
     private GradientDrawable round(int color, int radius) {
@@ -593,9 +737,11 @@ public final class MainActivity extends Activity implements LocationListener {
     private View space() { return new View(this); }
     private LinearLayout.LayoutParams match() { return new LinearLayout.LayoutParams(-1, -2); }
     private LinearLayout.LayoutParams top(int margin) {
-        LinearLayout.LayoutParams p = match();
-        p.topMargin = dp(margin);
-        return p;
+        LinearLayout.LayoutParams params = match();
+        params.topMargin = dp(margin);
+        return params;
     }
-    private LinearLayout.LayoutParams weight() { return new LinearLayout.LayoutParams(0, -2, 1f); }
+    private LinearLayout.LayoutParams weight() {
+        return new LinearLayout.LayoutParams(0, -2, 1f);
+    }
 }
