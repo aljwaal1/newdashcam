@@ -26,17 +26,28 @@ public final class TripMath {
         return kmh <= MAX_BICYCLE_SPEED_KMH && meters <= 180f;
     }
 
+    public static boolean shouldCountSegment(float meters, long elapsedMs,
+                                             float previousAccuracy, float currentAccuracy) {
+        if (!isPlausibleSegment(meters, elapsedMs)) return false;
+        return meters >= movementThreshold(previousAccuracy, currentAccuracy);
+    }
+
     public static float speedKmh(float sensorMetersPerSecond, boolean hasSensorSpeed,
                                  float segmentMeters, long elapsedMs) {
-        float speed = 0f;
+        float segmentSpeed = 0f;
+        if (elapsedMs > 0L && segmentMeters >= 0f &&
+                !Float.isNaN(segmentMeters) && !Float.isInfinite(segmentMeters)) {
+            segmentSpeed = segmentMeters / (elapsedMs / 1000f) * 3.6f;
+            if (segmentSpeed < 0f || segmentSpeed > MAX_BICYCLE_SPEED_KMH) segmentSpeed = 0f;
+        }
+
         if (hasSensorSpeed && !Float.isNaN(sensorMetersPerSecond) &&
                 !Float.isInfinite(sensorMetersPerSecond) && sensorMetersPerSecond >= 0f) {
-            speed = sensorMetersPerSecond * 3.6f;
-        } else if (elapsedMs > 0L && segmentMeters >= 0f) {
-            speed = segmentMeters / (elapsedMs / 1000f) * 3.6f;
+            float sensorSpeed = sensorMetersPerSecond * 3.6f;
+            if (sensorSpeed <= MAX_BICYCLE_SPEED_KMH) return sensorSpeed;
         }
-        if (Float.isNaN(speed) || Float.isInfinite(speed)) return 0f;
-        return clamp(speed, 0f, MAX_BICYCLE_SPEED_KMH);
+
+        return segmentSpeed;
     }
 
     public static float smoothSpeed(float oldSpeed, float newSpeed) {
