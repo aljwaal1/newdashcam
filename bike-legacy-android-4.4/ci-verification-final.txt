@@ -1,0 +1,1 @@
+Final Android 4.4 quality gate after resource and publishing fixes.
