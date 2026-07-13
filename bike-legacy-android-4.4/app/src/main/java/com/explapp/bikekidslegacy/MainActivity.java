@@ -95,7 +95,7 @@ public final class MainActivity extends Activity implements LocationListener {
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setOrientation(LinearLayout.HORIZONTAL);
-        TextView title = text("مغامرة دراجتي", 25, Color.rgb(18, 48, 71), true);
+        TextView title = text("مغامرة", 25, Color.rgb(18, 48, 71), true);
         header.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
         Button history = compactButton("سجل الرحلات", Color.rgb(40, 105, 139));
         history.setOnClickListener(new View.OnClickListener() {
