@@ -1,5 +1,5 @@
 Bike Adventure Android 4.4 build report
-Commit: 3728940975127f1ffaac6c63084b92d4150ce1cf
+Commit: d9ad874795ccc792023bfca1f64d5d4980de4439
 Unit tests: success
 Android lint: success
 Assemble release: success
@@ -31,9 +31,9 @@ Installing Android SDK Build-Tools 30.0.3 in /usr/local/lib/android/sdk/build-to
 > Task :app:compileDebugAidl NO-SOURCE
 > Task :app:compileDebugRenderscript NO-SOURCE
 > Task :app:generateDebugBuildConfig
-> Task :app:generateDebugResValues
-> Task :app:checkDebugAarMetadata
 > Task :app:javaPreCompileDebug
+> Task :app:checkDebugAarMetadata
+> Task :app:generateDebugResValues
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:createDebugCompatibleScreenManifests
@@ -42,8 +42,8 @@ Installing Android SDK Build-Tools 30.0.3 in /usr/local/lib/android/sdk/build-to
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:preDebugUnitTestBuild UP-TO-DATE
-> Task :app:javaPreCompileDebugUnitTest
 > Task :app:processDebugJavaRes NO-SOURCE
+> Task :app:javaPreCompileDebugUnitTest
 > Task :app:processDebugUnitTestJavaRes NO-SOURCE
 > Task :app:processDebugManifestForPackage
 > Task :app:processDebugResources
@@ -52,7 +52,7 @@ Installing Android SDK Build-Tools 30.0.3 in /usr/local/lib/android/sdk/build-to
 warning: [options] source value 7 is obsolete and will be removed in a future release
 warning: [options] target value 7 is obsolete and will be removed in a future release
 warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
-Note: /home/runner/work/newdashcam/newdashcam/bike-legacy-android-4.4/app/src/main/java/com/explapp/bikekidslegacy/MainActivity.java uses or overrides a deprecated API.
+Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 3 warnings
 
@@ -66,9 +66,9 @@ warning: [options] To suppress warnings about obsolete options, use -Xlint:-opti
 3 warnings
 
 > Task :app:testDebugUnitTest
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/unit_tests-1784056211613.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/unit_tests-1784056761536.json
 
-BUILD SUCCESSFUL in 32s
+BUILD SUCCESSFUL in 24s
 18 actionable tasks: 18 executed
 
 ===== ANDROID LINT =====
@@ -97,7 +97,7 @@ Daemon will be stopped at the end of the build
 warning: [options] source value 7 is obsolete and will be removed in a future release
 warning: [options] target value 7 is obsolete and will be removed in a future release
 warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
-Note: /home/runner/work/newdashcam/newdashcam/bike-legacy-android-4.4/app/src/main/java/com/explapp/bikekidslegacy/MainActivity.java uses or overrides a deprecated API.
+Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 3 warnings
 
@@ -108,9 +108,9 @@ Note: Recompile with -Xlint:deprecation for details.
 Wrote HTML report to file:///home/runner/work/newdashcam/newdashcam/bike-legacy-android-4.4/app/build/reports/lint-results-release.html
 
 > Task :app:lintRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/lint-1784056241671.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/lint-1784056785827.json
 
-BUILD SUCCESSFUL in 20s
+BUILD SUCCESSFUL in 16s
 18 actionable tasks: 18 executed
 
 ===== RELEASE BUILD =====
@@ -123,8 +123,8 @@ Daemon will be stopped at the end of the build
 > Task :app:compileReleaseRenderscript NO-SOURCE
 > Task :app:generateReleaseBuildConfig
 > Task :app:javaPreCompileRelease
-> Task :app:checkReleaseAarMetadata
 > Task :app:generateReleaseResValues
+> Task :app:checkReleaseAarMetadata
 > Task :app:mapReleaseSourceSetPaths
 > Task :app:generateReleaseResources
 > Task :app:createReleaseCompatibleScreenManifests
@@ -138,45 +138,45 @@ Daemon will be stopped at the end of the build
 > Task :app:stripReleaseDebugSymbols NO-SOURCE
 > Task :app:extractReleaseNativeSymbolTables NO-SOURCE
 > Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
-> Task :app:checkReleaseDuplicateClasses
 > Task :app:processReleaseManifestForPackage
-> Task :app:mergeReleaseShaders
-> Task :app:mergeReleaseArtProfile
+> Task :app:checkReleaseDuplicateClasses
 > Task :app:mergeExtDexRelease
+> Task :app:mergeReleaseShaders
 > Task :app:compileReleaseShaders NO-SOURCE
 > Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseArtProfile
 > Task :app:mergeReleaseAssets
 > Task :app:compressReleaseAssets
 > Task :app:processReleaseJavaRes NO-SOURCE
 > Task :app:collectReleaseDependencies
 > Task :app:mergeReleaseJavaResource
-> Task :app:processReleaseResources
 > Task :app:sdkReleaseDependencyData
+> Task :app:processReleaseResources
+> Task :app:validateSigningRelease
 
 > Task :app:compileReleaseJavaWithJavac
 warning: [options] source value 7 is obsolete and will be removed in a future release
 warning: [options] target value 7 is obsolete and will be removed in a future release
 warning: [options] To suppress warnings about obsolete options, use -Xlint:-options.
-Note: /home/runner/work/newdashcam/newdashcam/bike-legacy-android-4.4/app/src/main/java/com/explapp/bikekidslegacy/MainActivity.java uses or overrides a deprecated API.
+Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 3 warnings
 
 > Task :app:dexBuilderRelease
-> Task :app:mergeDexRelease
-> Task :app:validateSigningRelease
-> Task :app:compileReleaseArtProfile
 > Task :app:writeReleaseAppMetadata
 > Task :app:writeReleaseSigningConfigVersions
 > Task :app:optimizeReleaseResources
+> Task :app:mergeDexRelease
+> Task :app:compileReleaseArtProfile
 > Task :app:packageRelease
 > Task :app:createReleaseApkListingFileRedirect
 > Task :app:lintVitalAnalyzeRelease
 > Task :app:lintVitalReportRelease
 > Task :app:lintVitalRelease
 > Task :app:assembleRelease
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1784056262642.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/assemble-1784056803004.json
 
-BUILD SUCCESSFUL in 13s
+BUILD SUCCESSFUL in 10s
 37 actionable tasks: 37 executed
 
 ===== APK BADGING =====
@@ -188,11 +188,11 @@ uses-permission: name='android.permission.ACCESS_COARSE_LOCATION'
 application-label:'مغامرة الدراجة'
 application-icon-160:'res/6e.xml'
 application: label='مغامرة الدراجة' icon='res/6e.xml'
-launchable-activity: name='com.explapp.bikekidslegacy.MainActivity'  label='' icon=''
+launchable-activity: name='com.explapp.bikekidslegacy.PortraitMainActivity'  label='' icon=''
 feature-group: label=''
   uses-feature-not-required: name='android.hardware.location.gps'
   uses-feature-not-required: name='android.hardware.location.network'
-  uses-feature-not-required: name='android.hardware.screen.landscape'
+  uses-feature-not-required: name='android.hardware.screen.portrait'
   uses-feature: name='android.hardware.faketouch'
   uses-implied-feature: name='android.hardware.faketouch' reason='default feature for all apps'
   uses-feature: name='android.hardware.location'
